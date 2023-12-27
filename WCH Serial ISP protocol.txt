@@ -1,0 +1,96 @@
+
+Start serial communication
+[->] 57 ab a1 12 00 31 19 4d 43 55 20 49 53 50 20 26 20 57 43 48 2e 43 4e f5 W----1-MCU ISP & WCH.CN-
+[<-] 55 AA A1 00 02 00 31 19 ED U-----1--
+
+command A7 read user option bytes
+[->] 57 ab a7 02 00 1f 00 c8 W-------
+[<-] 55 AA A7 00 1A 00 1F 00 A5 5A 39 C6 12 ED 34 CB FF FF FF FF 00 02 06 00 14 85 5D BC CD AB 3E ED 35 U--------Z9---4-----------]--->-5
+Read prot byte and inverse --/===/ |===| |===| |===| |writeprot| |--BTVER--| |---- UID ------------|  \Checksum byte 
+user option bits and inverse ------/     |     |        bytes
+user data byte 1 and inverse ------------/	   |		 
+user data byte 2 and inverse ------------------/		
+
+option bits 0011 1xx1 = The IWDG function is enabled by software, and disabled by hardware *
+option bits 0011 1xx0 = The IWDG function is enabled by software (will trigger WDT reset after powerup)
+option bits 0011 1x1x = System will not be reset when entering Stop mode *
+option bits 0011 1x0x = System will be reset when entering Stop mode
+option bits 0011 11xx = System will not be reset when entering Standby mode *
+option bits 0011 10xx = System will be reset when entering Standby mode
+* default value 0011 1111 3F (C0)
+
+Write prot bytes: each bit write protects 1 sector (4Kbytes/sector)
+BTVER = bootloader version 2.60
+UID = UID (64 bits only) of the WCH chip
+Checksum = sum of all but the first two bytes (55 AA)
+
+command A8 set user option bytes
+[->] 57 ab a8 0e 00 07 00 a5 5a 39 c6 12 00 34 00 ff ff ff ff fd W-------Z9---4------
+[<-] 55 AA A8 00 02 00 00 00 AA U--------
+
+
+Read code protection
+[->] 57 ab a7 02 00 1f 00 c8 W-------
+[<-] 55 AA A7 00 1A 00 1F 00 FF 00 38 C7 FF 00 FF 00 FF FF FF FF 00 02 06 00 52 DD 5A BC CD AB 79 45 5B U---------8-------------R-Z---yE[
+Read protection enabled -----/===/
+
+
+Set read protection off --\===\
+[->] 57 ab a8 0e 00 07 00 a5 5a 38 c7 ff 00 ff 00 ff ff ff ff b5 W-------Z8----------
+[<-] 55 AA A8 00 02 00 00 00 AA U--------
+
+
+command A3 set Key (to zero's in this case)
+[->] 57 ab a3 1e 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 c1 W-----------------------------------
+[<-] 55 AA A3 00 02 00 09 00 AE U--------
+
+
+Erase Flash 224kB---\
+[->] 57 ab a4 04 00 e0 00 00 00 88 W---------
+[<-] 55 AA A4 00 02 00 00 00 A6 U--------
+Erase Flash 8kb-----\
+[->] 57 ab a4 04 00 08 00 00 00 b0 W---------
+[<-] 55 AA A4 00 02 00 00 00 A6 U--------
+
+
+Set Baudrate to 1M (0f4240 = 1000000) 
+[->] 57 ab c5 04 00 40 42 0f 00 5a W----@B--Z
+[<-] 55 AA C5 00 02 00 00 00 C7 U--------
+Set baudrate 115200
+[->] 57 ab c5 04 00 00 c2 01 00 8c W---------
+[<-] 55 AA C5 00 02 00 00 00 C7 U--------
+after the ack, the baudrate is changed
+
+
+command A5 Program flash
+[->] 57 ab a5 3d 00 00 00 00 00 00 14 7b 9b 2f 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 08 7b 6b ac 27 W--=-------{-/h{{-h{{{h{{-h{{{h{{-h{{{h{{-h{{{h{{-h{{{h{{-h{{{-{k-'
+[<-] 55 AA A5 00 02 00 00 00 A7 U--------
+
+If we set the A3-Key to all 00's (command A3) we should still xor all program data with a the xor-key
+the xor-key can be calculated by adding the 8 UID bytes together & 0xff 
+The last byte of each 8 byte block, needs a additional + 0x31 (see sourcecode)
+
+[->] 57 ab a5 3d 00 38 00 00 00 00 ...
+[->] 57 ab a5 3d 00 18 01 00 00 00 ...
+Nr of bytes   lo hi |  |  |  |  1 padding byte, then followed by xor obfuscated data 56 bytes
+Address LSB --------/  |  |  |
+Address byte 2 --------/  |  |
+Address byte 3 -----------/  | (unverified)
+Address MSB -----------------/ (unverified)
+
+
+command A6 verify Flash
+[->] 57 ab a6 3d 00 00 00 00 00 00 14 7b 9b 2f 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 08 7b 6b ac 28 W--=-------{-/h{{-h{{{h{{-h{{{h{{-h{{{h{{-h{{{h{{-h{{{h{{-h{{{-{k-(
+[<-] 55 AA A6 00 02 00 00 00 A8 U--------
+
+[->] 57 ab a6 3d 00 00 00 00 00 00 14 7b 9b 2f 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 68 7b 7b ac 68 7b 7b 7b 08 7b 6b ac 28 W--=-------{-/h{{-h{{{h{{-h{{{h{{-h{{{h{{-h{{{h{{-h{{{h{{-h{{{-{k-(
+[<-] 55 AA A6 00 02 00 F5 00 9D U--------
+Verify Error ----------/
+
+
+End of programming
+reset CPU ----------\
+[->] 57 ab a2 01 00 01 a4 W------
+[<-] 55 AA A2 00 02 00 00 00 A4 U--------
+
+
